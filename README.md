@@ -306,13 +306,6 @@ sister_uas/
 ---
 
 ## 10. Video Demo
-
-Rekam demo (≥ 25 menit) yang menampilkan seluruh item rubrik: arsitektur,
-`docker compose up --build`, pengiriman event duplikat + bukti idempotency/dedup,
-demonstrasi konkurensi multi-worker, `GET /events` & `GET /stats` sebelum/sesudah,
-recreate container + bukti persistensi volume, isolasi jaringan lokal, dan
-observability. Tambahkan tautan YouTube (unlisted/public) pada baris berikut:
-
 Video demo: 
-```
+``` https://www.youtube.com/watch?v=yxxArt7-3jc
 
