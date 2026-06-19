@@ -1,0 +1,92 @@
+# Pub-Sub Log Aggregator Terdistribusi.
+# Semua service berjalan di jaringan internal Compose. Hanya aggregator yang
+# meng-expose port (8080) untuk keperluan demo lokal; broker & storage TIDAK
+# meng-expose port keluar (isolasi jaringan, Bab 10). Data disimpan pada named
+# volumes agar persisten meski container dihapus/di-recreate (Bab 11).
+
+services:
+  storage:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=db
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  broker:
+    image: redis:7-alpine
+    # AOF aktif agar stream/PEL durable terhadap restart (crash recovery).
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - broker_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  aggregator:
+    build: ./aggregator
+    image: uts-aggregator:latest
+    depends_on:
+      storage:
+        condition: service_healthy
+      broker:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgres://user:pass@storage:5432/db
+      - BROKER_URL=redis://broker:6379
+      - CONSUMER_WORKERS=4
+    ports:
+      - "8080:8080"   # expose hanya untuk demo lokal
+    networks:
+      - internal
+    healthcheck:
+      test:
+        ["CMD-SHELL",
+         "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health/ready').status==200 else 1)\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  # Publisher dijalankan on-demand (profile 'load'), bukan saat `up` biasa,
+  # agar beban event terkontrol. Jalankan dengan:
+  #   docker compose --profile load up publisher
+  publisher:
+    build: ./publisher
+    image: uts-publisher:latest
+    depends_on:
+      aggregator:
+        condition: service_healthy
+    environment:
+      - TARGET_URL=http://aggregator:8080/publish
+      - TOTAL_EVENTS=20000
+      - DUPLICATE_RATE=0.3
+      - BATCH_SIZE=500
+      - CONCURRENCY=8
+    networks:
+      - internal
+    profiles:
+      - load
+    restart: "no"
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  pg_data:
+  broker_data:
