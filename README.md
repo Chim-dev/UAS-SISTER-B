@@ -307,5 +307,5 @@ sister_uas/
 
 ## 10. Video Demo
 Video demo: 
-``` https://www.youtube.com/watch?v=yxxArt7-3jc
+https://www.youtube.com/watch?v=yxxArt7-3jc
 
